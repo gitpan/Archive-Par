@@ -72,7 +72,7 @@ use constant FILE_OK         => 8;
 # -------------------------------------
 
 our $PACKAGE = 'Archive-Par';
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 # -------------------------------------
 # CLASS CONSTRUCTION
@@ -98,46 +98,22 @@ Z<>
 
 =cut
 
-=head2 _parse_par_output
-
-=over 4
-
-=item ARGUMENTS
-
-=over 4
-
-=item text
-
-Text to parse
-
-=item fn
-
-Name of file submitted to par (for sanity checking).
-
-=back
-
-=item RETURNS
-
-=over 4
-
-=item status
-
-hashref from file name to status
-
-=item file_name
-
-hashref from file name, as it should be as per par, to file found
-
-=item bad_old_files
-
-Where new files have been created containing bad data (e.g., old corrupt files
-being moved out of the way), these files are enumerated here.
-
-=back
-
-=back
-
-=cut
+## _parse_par_output
+#
+# Args:
+#  -) text
+#     Text to parse
+#  -) fn
+#     Name of file submitted to par (for sanity checking).
+#
+# Returns:
+#  -) status
+#     hashref from file name to status
+#  -) file_name
+#     hashref from file name, as it should be as per par, to file found
+#  -) bad_old_files
+#     Where new files have been created containing bad data (e.g., old corrupt
+#     files being moved out of the way), these files are enumerated here.
 
 sub _parse_par_output {
   my $class = shift;
@@ -146,8 +122,10 @@ sub _parse_par_output {
   my @lines = split /\n/, $text;
 
   my $lineno = 0;
-  croak "Bad start format on par line $lineno: $lines[$lineno]\n"
-    unless $lines[$lineno] =~ /\AChecking $fn$/m;
+  croak sprintf("Bad start format on par line %d:\n-->%s<--\n" .
+                "Expected:\n-->%s<--\n",
+                $lineno, $lines[$lineno], "Checking $fn")
+    unless $lines[$lineno] eq "Checking $fn";
   $lineno++;
 
   my (%status, %file_name, @bad_old_files);
@@ -220,11 +198,13 @@ sub _parse_par_output {
       unless $lines[$lineno] eq 'Looking for PXX volumes:';
     $lineno++;
 
-    for ( ; substr($lines[$lineno], 0, 2) eq '  '; $lineno++ ) {
+#    for ( ; substr($lines[$lineno], 0, 2) eq '  '; $lineno++ ) {
+    for ( ; $lines[$lineno] ne ''; $lineno++ ) {
       if ( my ($file) =
-           ($lines[$lineno] =~ /^  (.{40,}) - (OK)$/) ) {
-         $file =~ s! +$!!;
+           ( $lines[$lineno] =~ /^  (.{40,}) - (OK)$/) ) {
+        $file =~ s! +$!!;
         # push @volumes, $file;
+      } elsif ( $lines[$lineno] =~ /^(.*)$/ ) {
       } else {
         Log(CHAN_DEBUG, LOG_INFO, "Ignoring line: $lines[$lineno]");
       }
@@ -371,6 +351,10 @@ Z<>
 
 =over 4
 
+=item PRECONDITION
+
+  $self->checked
+
 =item ARGUMENTS
 
 I<None>
@@ -381,7 +365,7 @@ I<None>
 
 =item files
 
-List of files known by par
+List of files known by par, by their names as par believes they should be.
 
 =back
 
@@ -396,9 +380,54 @@ sub files {
 
 # -------------------------------------
 
+=head2 files
+
+=over 4
+
+=item PRECONDITION
+
+  $self->checked
+
+=item ARGUMENTS
+
+I<None>
+
+=item RETURNS
+
+=over 4
+
+=item files
+
+List of files known by par, by their names as found on the filesystem.  Files
+not found are not included in the list.  File names are prefixed by the
+directory portion of the par filename, so -e should work.
+
+=back
+
+=back
+
+=cut
+
+sub fs_files {
+  my $self = shift;
+
+  my $par_dir = dirname($self->fn);
+
+  return
+    map catfile($par_dir, $_),
+      map(($self->file_moved($_) || $_), grep ($self->status($_) & FILE_FOUND,
+                                               $self->files));
+}
+
+# -------------------------------------
+
 =head2 file_known
 
 =over 4
+
+=item PRECONDITION
+
+  $self->checked
 
 =item ARGUMENTS
 
@@ -817,9 +846,25 @@ Z<>
 sub check {
   my $self = shift; my $class = ref $self;
 
-  my $fn = $self->fn;
   my $out;
-  run([par => 'check', $fn], '&>', \$out);
+  # OK, there is (possibly) some arguments.  A filename forces that file to be
+  # used for the unrar command. A filehandle argument reads from that
+  # filehandle to parse, rather than invoking unrar.  If the filehandle isn't
+  # a ref, it's treated purely as a text string.  This is for testing.
+
+  my ($fn, $fh) = @_;
+  if ( defined $fh ) {
+    if ( ref $fh ) {
+      local $/ = undef;
+      $out = <$fh>;
+    } else {
+      $out = $fh;
+    }
+  } else {
+    $fn = $self->fn
+      unless defined $fn;
+    run([par => 'check', $fn], '&>', \$out);
+  }
 
   my ($status, $file_name) = $class->_parse_par_output($out, $fn);
   $self->status_clear;

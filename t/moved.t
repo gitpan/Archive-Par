@@ -240,15 +240,18 @@ for (2..4) {
 }
 
 unless ( $skip ) {
+  for (2,4) {
+    mv catfile(DATA_DIR, "miffy.$_"), catfile(DATA_DIR, "miffy-moved.$_");
+  }
   for (map "miffy.$_", 1,3..5) {
     my $stat = (stat($_))[2] & 0777;
     my $target = catfile(DATA_DIR, $_);
-    chmod 0600, $target;
+    chmod 0600, $target
+      if -e $target; # #4 should be gone
     cp $_, $target
       or die sprintf "Failed to move %s -> %s: $!", $_, $target;
     chmod $stat, $target;
   }
-  unlink catfile (DATA_DIR, 'miffy.2');
 }
 
 # -------------------------------------

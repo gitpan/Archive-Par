@@ -70,3 +70,8 @@ testref/miffy.4
 testref/mungo.4
 testref/mungo.5
 testref/mungo.p01
+BUGS
+data/Angel_3x12_-_Provider_SVCD_<Read_NFO>_*Par_Files*_03_of_10_-_Angel.3x12.SVCD.C00Ki3.TheTube.par
+data/notpar.par
+t/corrupt.t
+t/notpar.t
