@@ -1,0 +1,7 @@
+Revision history for Archive-Par.
+
+1.00  Tue Feb 26  9:49 AM GMT 2002
+	- Fully fledged info lookup & restore
+
+0.01  Mon Feb 18  5:36 PM GMT 2002
+	- first basic framework (just simple info lookup)
